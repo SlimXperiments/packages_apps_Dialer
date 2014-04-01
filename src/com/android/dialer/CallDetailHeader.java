@@ -17,14 +17,17 @@
 package com.android.dialer;
 
 import android.app.Activity;
+import android.app.LoaderManager.LoaderCallbacks;
 import android.content.Context;
 import android.content.Intent;
+import android.content.Loader;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.provider.Contacts.Intents.Insert;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.provider.ContactsContract.Contacts;
+import android.provider.ContactsContract.DisplayNameSources;
+import android.provider.Contacts.Intents.Insert;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -41,11 +44,16 @@ import com.android.contacts.common.CallUtil;
 import com.android.contacts.common.ClipboardUtils;
 import com.android.contacts.common.ContactPhotoManager;
 import com.android.contacts.common.format.FormatUtils;
+import com.android.contacts.common.model.Contact;
+import com.android.contacts.common.model.ContactLoader;
 import com.android.contacts.common.util.Constants;
 import com.android.dialer.calllog.PhoneNumberHelper;
 import com.android.dialer.calllog.PhoneNumberUtilsWrapper;
 
 public class CallDetailHeader {
+    private static final int LOADER_ID = 0;
+    private static final String BUNDLE_CONTACT_URI_EXTRA = "contact_uri_extra";
+    
     private static final char LEFT_TO_RIGHT_EMBEDDING = '\u202A';
     private static final char POP_DIRECTIONAL_FORMATTING = '\u202C';
 
@@ -108,6 +116,35 @@ public class CallDetailHeader {
             }
             startPhoneNumberSelectedActionMode(v);
             return true;
+        }
+    };
+    
+    private final LoaderCallbacks<Contact> mLoaderCallbacks = new LoaderCallbacks<Contact>() {
+        @Override
+        public void onLoaderReset(Loader<Contact> loader) {
+        }
+
+        @Override
+        public void onLoadFinished(Loader<Contact> loader, Contact data) {
+            final Intent intent = new Intent(Intent.ACTION_INSERT_OR_EDIT);
+            intent.setType(Contacts.CONTENT_ITEM_TYPE);
+            if (data.getDisplayNameSource() >= DisplayNameSources.ORGANIZATION) {
+                intent.putExtra(Insert.NAME, data.getDisplayName());
+            }
+            intent.putExtra(Insert.DATA, data.getContentValues());
+            bindContactPhotoAction(intent, R.drawable.ic_add_contact_holo_dark,
+                    getString(R.string.description_add_contact));
+        }
+
+        @Override
+        public Loader<Contact> onCreateLoader(int id, Bundle args) {
+            final Uri contactUri = args.getParcelable(BUNDLE_CONTACT_URI_EXTRA);
+            if (contactUri == null) {
+                Log.wtf(TAG, "No contact lookup uri provided.");
+            }
+            return new ContactLoader(CallDetailActivity.this, contactUri,
+                    false /* loadGroupMetaData */, false /* loadInvitableAccountTypes */,
+                    false /* postViewNotification */, true /* computeFormattedPhoneNumber */);
         }
     };
 
@@ -220,6 +257,13 @@ public class CallDetailHeader {
             mainActionIcon = R.drawable.ic_contacts_holo_dark;
             mainActionDescription =
                 mResources.getString(R.string.description_view_contact, nameOrNumber);
+        } else if (UriUtils.isEncodedContactUri(contactUri)) {
+            final Bundle bundle = new Bundle(1);
+            bundle.putParcelable(BUNDLE_CONTACT_URI_EXTRA, contactUri);
+            getLoaderManager().initLoader(LOADER_ID, bundle, mLoaderCallbacks);
+            mainActionIntent = null;
+            mainActionIcon = R.drawable.ic_add_contact_holo_dark;
+            mainActionDescription = getString(R.string.description_add_contact);
         } else if (isVoicemailNumber) {
             mainActionIntent = null;
             mainActionIcon = 0;
@@ -244,8 +288,8 @@ public class CallDetailHeader {
             mainActionIcon = R.drawable.ic_add_contact_holo_dark;
             mainActionDescription = mResources.getString(R.string.description_add_contact);
         } else {
-            // If we cannot call the number, when we probably cannot add it as a contact either.
-            // This is usually the case of private, unknown, or payphone numbers.
+            // If we cannot call the number, when we probably cannot add it as a contact
+            // either. This is usually the case of private, unknown, or payphone numbers.
             mainActionIntent = null;
             mainActionIcon = 0;
             mainActionDescription = null;
