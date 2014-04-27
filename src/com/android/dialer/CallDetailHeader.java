@@ -298,8 +298,8 @@ public class CallDetailHeader {
             mainActionIcon = R.drawable.ic_add_contact_holo_dark;
             mainActionDescription = mResources.getString(R.string.description_add_contact);
         } else {
-            // If we cannot call the number, when we probably cannot add it as a contact either.
-            // This is usually the case of private, unknown, or payphone numbers.
+            // If we cannot call the number, when we probably cannot add it as a contact
+            // either. This is usually the case of private, unknown, or payphone numbers.
             mainActionIntent = null;
             mainActionIcon = 0;
             mainActionDescription = null;

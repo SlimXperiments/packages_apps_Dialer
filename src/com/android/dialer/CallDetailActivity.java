@@ -17,13 +17,11 @@
 package com.android.dialer;
 
 import android.app.Activity;
-import android.app.LoaderManager.LoaderCallbacks;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.Loader;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.graphics.drawable.Drawable;
@@ -34,7 +32,6 @@ import android.provider.CallLog;
 import android.provider.CallLog.Calls;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.provider.ContactsContract.Contacts;
-import android.provider.ContactsContract.DisplayNameSources;
 import android.provider.ContactsContract.Intents.Insert;
 import android.provider.VoicemailContract.Voicemails;
 import android.telephony.PhoneNumberUtils;
@@ -54,8 +51,6 @@ import android.widget.Toast;
 import com.android.contacts.common.ContactPhotoManager;
 import com.android.contacts.common.CallUtil;
 import com.android.contacts.common.GeoUtil;
-import com.android.contacts.common.model.Contact;
-import com.android.contacts.common.model.ContactLoader;
 import com.android.contacts.common.util.UriUtils;
 import com.android.dialer.BackScrollManager.ScrollableHeader;
 import com.android.dialer.calllog.CallDetailHistoryAdapter;
@@ -81,9 +76,6 @@ import java.util.List;
  */
 public class CallDetailActivity extends Activity implements ProximitySensorAware {
     private static final String TAG = "CallDetail";
-
-    private static final int LOADER_ID = 0;
-    private static final String BUNDLE_CONTACT_URI_EXTRA = "contact_uri_extra";
 
     /** The time to wait before enabling the blank the screen due to the proximity sensor. */
     private static final long PROXIMITY_BLANK_DELAY_MILLIS = 100;
@@ -207,35 +199,6 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
     static final int COUNTRY_ISO_COLUMN_INDEX = 4;
     static final int GEOCODED_LOCATION_COLUMN_INDEX = 5;
     static final int NUMBER_PRESENTATION_COLUMN_INDEX = 6;
-
-    private final LoaderCallbacks<Contact> mLoaderCallbacks = new LoaderCallbacks<Contact>() {
-        @Override
-        public void onLoaderReset(Loader<Contact> loader) {
-        }
-
-        @Override
-        public void onLoadFinished(Loader<Contact> loader, Contact data) {
-            final Intent intent = new Intent(Intent.ACTION_INSERT_OR_EDIT);
-            intent.setType(Contacts.CONTENT_ITEM_TYPE);
-            if (data.getDisplayNameSource() >= DisplayNameSources.ORGANIZATION) {
-                intent.putExtra(Insert.NAME, data.getDisplayName());
-            }
-            intent.putExtra(Insert.DATA, data.getContentValues());
-            bindContactPhotoAction(intent, R.drawable.ic_add_contact_holo_dark,
-                    getString(R.string.description_add_contact));
-        }
-
-        @Override
-        public Loader<Contact> onCreateLoader(int id, Bundle args) {
-            final Uri contactUri = args.getParcelable(BUNDLE_CONTACT_URI_EXTRA);
-            if (contactUri == null) {
-                Log.wtf(TAG, "No contact lookup uri provided.");
-            }
-            return new ContactLoader(CallDetailActivity.this, contactUri,
-                    false /* loadGroupMetaData */, false /* loadInvitableAccountTypes */,
-                    false /* postViewNotification */, true /* computeFormattedPhoneNumber */);
-        }
-    };
 
     @Override
     protected void onCreate(Bundle icicle) {
@@ -444,29 +407,6 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
             }
         }
         mAsyncTaskExecutor.submit(Tasks.UPDATE_PHONE_CALL_DETAILS, new UpdateContactDetailsTask());
-    }
-
-    private void bindContactPhotoAction(final Intent actionIntent, int actionIcon,
-            String actionDescription) {
-        if (actionIntent == null) {
-            mMainActionView.setVisibility(View.INVISIBLE);
-            mMainActionPushLayerView.setVisibility(View.GONE);
-            mHeaderTextView.setVisibility(View.INVISIBLE);
-            mHeaderOverlayView.setVisibility(View.INVISIBLE);
-        } else {
-            mMainActionView.setVisibility(View.VISIBLE);
-            mMainActionView.setImageResource(actionIcon);
-            mMainActionPushLayerView.setVisibility(View.VISIBLE);
-            mMainActionPushLayerView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    startActivity(actionIntent);
-                }
-            });
-            mMainActionPushLayerView.setContentDescription(actionDescription);
-            mHeaderTextView.setVisibility(View.VISIBLE);
-            mHeaderOverlayView.setVisibility(View.VISIBLE);
-        }
     }
 
     /** Return the phone call details for a given call log URI. */
